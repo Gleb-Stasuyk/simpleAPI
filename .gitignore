@@ -27,4 +27,6 @@ posts/static/
 posts/media/
 .vscode/
 
+db.sqlite3
+cor.py
 
