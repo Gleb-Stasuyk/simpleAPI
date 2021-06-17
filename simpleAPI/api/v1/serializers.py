@@ -21,6 +21,8 @@ class CompanySerializer(serializers.ModelSerializer):
         model = Company
         exclude = ['id']
 
+
+
 class CompanySerializerNotAuth(serializers.ModelSerializer):
     class Meta:
         model = Company
@@ -47,3 +49,29 @@ class UserSerializer(serializers.ModelSerializer):
         user = User.objects.create(**validated_data)
         Profile.objects.create(user=user, **profile_data)
         return user
+
+    def update(self, instance, validated_data):
+
+        profile_data = validated_data.pop('profile')
+        profile = instance.profile
+
+        # * User Info
+        instance.first_name = validated_data.get(
+            'first_name', instance.first_name)
+        instance.last_name = validated_data.get(
+            'last_name', instance.last_name)
+
+        # * AccountProfile Info
+        profile.company = profile_data.get(
+            'company', profile.company)
+        profile.bio = profile_data.get(
+            'bio', profile.bio)
+        profile.location = profile_data.get(
+            'location', profile.location)
+        profile.birth_date = profile_data.get(
+            'birth_date', profile.birth_date)
+        profile.role = profile_data.get(
+            'role', profile.role)
+        profile.save()
+
+        return instance

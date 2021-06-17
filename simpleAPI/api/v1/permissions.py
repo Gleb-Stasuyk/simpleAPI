@@ -1,7 +1,6 @@
 from rest_framework import permissions
-from rest_framework.permissions import SAFE_METHODS
 
-from users.models import Profile
+from companys.models import Company
 
 
 class IsAdminOnly(permissions.BasePermission):
@@ -11,22 +10,37 @@ class IsAdminOnly(permissions.BasePermission):
 
     def has_permission(self, request, view):
         if request.user.is_authenticated:
-            if request.user.is_superuser or request.user.is_staff:
-                return True
             try:
                 return request.user.profile.role == 'admin'
             except:
-                return False
+                return request.user.is_superuser
 
         return False
 
+    def has_object_permission(self, request, view, obj):
+        if request.user.is_authenticated:
+            try:
+                return request.user.profile.role == 'admin'
+            except:
+                return request.user.is_superuser
+
+        return False
 
 class IsUser(permissions.BasePermission):
     '''
     Allows access to moderator make patch requests
     '''
 
-    def has_object_permission(self, request, view, obj):
+    def has_permission(self, request, view):
         if request.user.is_authenticated:
-            return request.user.role == 'user' and request.method in SAFE_METHODS
+            try:
+                return request.user.profile.role == 'user' and request.method in ['GET', 'PATCH', "PUT"]
+            except AttributeError:
+                return False
         return False
+
+    def has_object_permission(self, request, view, obj):
+        if obj == request.user.profile.company:
+            return True
+        return False
+

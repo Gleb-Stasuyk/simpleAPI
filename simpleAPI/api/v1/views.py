@@ -1,91 +1,62 @@
 from django.contrib.auth import get_user_model
 from rest_framework import viewsets
-from api.v1.serializers import CompanySerializer, UserSerializer, CompanySerializerNotAuth
-from companys.models import Company
+from api.v1.serializers import CompanySerializer, UserSerializer, CompanySerializerNotAuth, NewsSerializer
+from companys.models import Company, News
 from api.v1.permissions import IsAdminOnly, IsUser
 from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
+from rest_framework.decorators import action
+
 
 User = get_user_model()
 
 
-"""
+class CompanyViewSet(viewsets.ModelViewSet):
+    queryset = Company.objects.all()
+    permission_classes = [IsAdminOnly|IsUser,]
+
     def get_serializer_class(self):
-        if self.action == 'list':
-            return serializers.ListaGruppi
+        try:
+            role = self.request.user.profile.role
+        except AttributeError:
+            role = None
+        if self.action == 'list' and role == 'admin':
+            return CompanySerializer
+        if self.action == 'my_company':
+            return CompanySerializer
         if self.action == 'retrieve':
-            return serializers.DettaglioGruppi
-        return serializers.Default  # I dont' know what you want for create/destroy/update.                
-"""
+            return CompanySerializer
+        return CompanySerializerNotAuth
 
+    @action(detail=False, methods=['get', 'patch', 'put'], permission_classes=[IsUser|IsAdminOnly],
+            url_path='my-company', url_name='my_company')
+    def my_company(self, request):
+        company = Company.objects.filter(pk=request.user.profile.company.id)
 
-class CompanyViewSet(viewsets.ViewSet):
+        page = self.paginate_queryset(company)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
 
-    def get_user_company(self, request):
-        try:
-            user_company = request.user.profile.company.id
-        except:
-            user_company = None
-        return user_company
-
-    def get_user_role(self, request):
-        try:
-            user_role = request.user.profile.role
-        except:
-            user_role = None
-        return user_role
-
-    def list(self, request):
-        queryset = Company.objects.all()
-        if request.user.is_superuser:
-            serializer = CompanySerializer(queryset, many=True)
-        elif request.user.is_authenticated:
-            try:
-                if request.user.profile.role == 'admin':
-                    serializer = CompanySerializer(queryset, many=True)
-            except:
-                pass
-        else:
-            serializer = CompanySerializerNotAuth(queryset, many=True)
+        serializer = self.get_serializer(company, many=True)
         return Response(serializer.data)
 
-    def retrieve(self, request, pk=None):
-        user_company = self.get_user_company(request)
 
-        if request.user.is_superuser or user_company:
-            queryset = Company.objects.all()
-            company = get_object_or_404(queryset, pk=pk)
-            serializer = CompanySerializer(company)
-            return Response(serializer.data)
-        raise PermissionDenied({"message": "You don't have permission to access",
-                                    "company_id": pk})
+class NewsViewSet(viewsets.ModelViewSet):
+    serializer_class = NewsSerializer
+    queryset = News.objects.all()
+    permission_classes = [IsAdminOnly|IsUser]
 
-    def create(self, request):
-        user_role = self.get_user_role(request)
-        if request.user.is_superuser or user_role == 'admin':
-            serializer = CompanySerializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
-            return Response(serializer.data)
-        raise PermissionDenied({"message": "You don't have permission to create company"})
+    def get_queryset(self):
+        company = Company.objects.get(pk=self.request.user.profile.company.id)
+        return News.objects.filter(company=company)
 
-    def update(self, request, *args, **kwargs):
-        user_role = self.get_user_role(request)
-        user_company = self.get_user_company(request)
-
-        instance = self.get_object()
-        print(instance)
-        serializer = CompanySerializer(
-            instance=instance,
-            data=request.data
-        )
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data)
 
 
 class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
     queryset = User.objects.all()
     permission_classes = [IsAdminOnly, ]
+
+
